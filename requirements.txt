@@ -1,0 +1,5 @@
+flask
+numpy
+sentence-transformers
+matplotlib
+scikit-learn

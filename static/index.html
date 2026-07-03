@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Vector Search Engine</title>
+<style>
+  body { font-family: sans-serif; max-width: 640px; margin: 40px auto; padding: 0 16px; }
+  h1 { font-size: 20px; }
+  #query { width: 70%; padding: 8px; font-size: 14px; }
+  #searchBtn { padding: 8px 16px; font-size: 14px; }
+  ul { list-style: none; padding: 0; }
+  li { padding: 10px 0; border-bottom: 1px solid #ddd; }
+  .score { font-weight: bold; color: #333; }
+  .status { color: #666; font-size: 13px; margin-top: 8px; }
+  .empty { color: #888; font-size: 14px; margin-top: 16px; }
+  .spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #ccc;
+    border-top-color: #333;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  hr { margin: 32px 0; border: none; border-top: 1px solid #ddd; }
+  #docText { width: 100%; padding: 8px; font-size: 14px; box-sizing: border-box; height: 60px; }
+  #addBtn { padding: 8px 16px; font-size: 14px; margin-top: 8px; }
+  .addStatus { color: #666; font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <h1>Vector Search Engine</h1>
+  <div class="addStatus" id="docCount">Loading document count...</div>
+  <input type="text" id="query" placeholder="Search documents..." />
+  <button id="searchBtn">Search</button>
+  <div class="status" id="status"></div>
+  <div class="empty" id="empty" style="display:none;">No results found.</div>
+  <ul id="results"></ul>
+
+  <hr>
+
+  <h1>Add Document</h1>
+  <textarea id="docText" placeholder="Enter document text to index..."></textarea>
+  <br>
+  <button id="addBtn">Add Document</button>
+  <div class="addStatus" id="addStatus"></div>
+
+<script>
+  const queryInput = document.getElementById("query");
+  const searchBtn = document.getElementById("searchBtn");
+  const resultsEl = document.getElementById("results");
+  const statusEl = document.getElementById("status");
+  const emptyEl = document.getElementById("empty");
+  const docTextInput = document.getElementById("docText");
+  const addBtn = document.getElementById("addBtn");
+  const addStatusEl = document.getElementById("addStatus");
+  const docCountEl = document.getElementById("docCount");
+
+  async function refreshDocCount() {
+    try {
+      const res = await fetch("/stats");
+      const data = await res.json();
+      docCountEl.textContent = `${data.num_documents.toLocaleString()} documents indexed`;
+    } catch (err) {
+      docCountEl.textContent = "Document count unavailable";
+    }
+  }
+
+  async function runSearch() {
+    const query = queryInput.value.trim();
+    if (!query) return;
+
+    searchBtn.disabled = true;
+    emptyEl.style.display = "none";
+    resultsEl.innerHTML = "";
+    statusEl.innerHTML = `<span class="spinner"></span>Searching...`;
+
+    try {
+      const res = await fetch("/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: query, top_k: 5 })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        statusEl.textContent = data.error || "Search failed.";
+        return;
+      }
+
+      if (!data.results.length) {
+        statusEl.textContent = `0 results (${data.method}, ${data.latency_ms}ms)`;
+        emptyEl.style.display = "block";
+        return;
+      }
+
+      statusEl.textContent = `${data.results.length} results (${data.method}, ${data.latency_ms}ms)`;
+
+      resultsEl.innerHTML = data.results.map(r => {
+        const pct = (r.score * 100).toFixed(1);
+        return `<li><span class="score">${pct}%</span> — ${r.text}</li>`;
+      }).join("");
+    } catch (err) {
+      statusEl.textContent = "Error: " + err.message;
+    } finally {
+      searchBtn.disabled = false;
+    }
+  }
+
+  searchBtn.addEventListener("click", runSearch);
+  queryInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") runSearch();
+  });
+
+  async function addDocument() {
+    const text = docTextInput.value.trim();
+    if (!text) return;
+
+    addBtn.disabled = true;
+    addStatusEl.innerHTML = `<span class="spinner"></span>Adding...`;
+
+    try {
+      const res = await fetch("/index", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text })
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        addStatusEl.textContent = data.error || "Failed to add document.";
+        return;
+      }
+
+      addStatusEl.textContent = `Added document #${data.id}.`;
+      docTextInput.value = "";
+      refreshDocCount();
+    } catch (err) {
+      addStatusEl.textContent = "Error: " + err.message;
+    } finally {
+      addBtn.disabled = false;
+    }
+  }
+
+  addBtn.addEventListener("click", addDocument);
+
+  refreshDocCount();
+</script>
+</body>
+</html>

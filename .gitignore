@@ -1,0 +1,17 @@
+# Generated data — rebuild with: python data/loader.py && python embedder.py
+embeddings.npy
+embeddings_ids.npy
+vectors.db
+
+# Generated output
+latency_vs_recall.png
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pythonlibs/
+
+# Virtual environments
+venv/
+.venv/
